@@ -3,6 +3,7 @@ const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
 const Person = require('./models/person')
+const { count } = require('./models/person')
 
 
 const app = express()
@@ -16,7 +17,14 @@ morgan.token('person', (req, res) => {
     return JSON.stringify(req.body)
 })
 
-let phonebooks = []
+app.get('/api/info', (req, res) => {
+    Person
+        .countDocuments()
+        .then(count =>
+            res.send(`<p>Phonebook has info for ${count} people</p><p>${new Date()}</p>`)
+        )
+})
+
 
 app.get('/api/persons', (req, res) => {
     Person.find({}).then(people => {
@@ -24,26 +32,27 @@ app.get('/api/persons', (req, res) => {
     })
 })
 
-app.get('/api/info', (req, res) => {
-    res.send(`<p>Phonebook has info for ${phonebooks.length} people</p><p>${new Date()}</p>`)
+app.get('/api/persons/:id', (req, res, next) => {
+    Person
+        .findById(req.params.id)
+        .then(note => {
+            if (note) {
+                res.json(note)
+            } else {
+                res.status(404).end()
+            }
+        })
+        .catch(error => next(error))
+
 })
 
-app.delete('/api/persons/:id', (req, res) => {
-    const id = Number(req.params.id)
-
-    let copy = [...phonebooks]
-    phonebooks = phonebooks.filter(phonebook => phonebook.id != id)
-
-    if (copy.length === phonebooks.length) {
-        res.status(404).end()
-    } else {
-        res.status(204).end()
-    }
+app.delete('/api/persons/:id', (req, res, next) => {
+    Person.findByIdAndRemove(req.params.id)
+        .then(result => {
+            res.status(204).end()
+        })
+        .catch(error => next(error))
 })
-
-const generateId = () => {
-    return Math.floor(Math.random() * 999999999)
-}
 
 app.post('/api/persons', (req, res) => {
     const body = req.body
@@ -60,26 +69,20 @@ app.post('/api/persons', (req, res) => {
         })
     }
 
-    const names = phonebooks.map(person => person.name)
-
-    if (names.includes(body.name)) {
-        return res.status(400).json({
-            error: 'name must be unique'
-        })
-    }
-
-    const person = {
-        id: generateId(),
+    const person = new Person({
         name: body.name,
         number: body.number
-    }
+    })
 
-    phonebooks = phonebooks.concat(person)
-
-    res.json(person)
+    person
+        .save()
+        .then(result => {
+            console.log(result)
+            res.json(result)
+        })
 })
 
-app.put('/api/persons/:id', (req, res) => {
+app.put('/api/persons/:id', (req, res, next) => {
     const body = req.body
     console.log("body: ", body)
     if (!body.number) {
@@ -88,17 +91,36 @@ app.put('/api/persons/:id', (req, res) => {
         })
     }
 
-    // console.log(phonebooks)
+    const person = {
+        name: body.name,
+        number: body.number
+    }
 
-    const phonebooks1 = phonebooks.map(phonebook => {
-        console.log("debug: ", phonebook)
-        return phonebook.name === body.name ? req.body : phonebook
-    })
-
-    phonebooks = phonebooks1
-
-    res.json(req.body)
+    Person.findByIdAndUpdate(req.params.id, person, { new: true })
+        .then(updatedPerson => {
+            res.json(updatedPerson)
+        })
+        .catch(error => next(error))
 })
+
+const unknownEndpoint = (request, response) => {
+    response.status(404).send({ error: 'unknown endpoint' })
+}
+
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
+
+    if (error.name === 'CastError') {
+        return response.status(400).send({ error: 'malformatted id' })
+    }
+
+    next(error)
+}
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT
 app.listen(PORT, () => {
