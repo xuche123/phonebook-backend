@@ -8,7 +8,7 @@ POST http://localhost:3001/api/persons HTTP/1.1
 content-type: application/json
 
 {
-    "name": "sample1",
+    "name": "",
     "number": "12345678"
 }
 
@@ -17,7 +17,7 @@ PUT http://localhost:3001/api/persons/63cce5d15dbdf2cc5cfa1939
 content-type: application/json
 
 {
-    "name": "Anna3",
+    "name": "Anna4",
     "number": "12345678"
 }
 
